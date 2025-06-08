@@ -1,0 +1,14 @@
+{
+  "name": "turtle-movement-game",
+  "version": "1.0.0",
+  "description": "A JavaScript game to teach children movement and turn terminology using a 25x25 grid and a turtle character.",
+  "main": "index.js",
+  "scripts": {
+    "start": "npx serve ."
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}

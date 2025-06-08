@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Turtle Movement Game</title>
+  <style>
+    body { font-family: sans-serif; background: #ffe4ef; /* light pink */ }
+    #game-container { display: flex; flex-direction: column; align-items: center; margin-top: 20px; }
+    h1 { color: #43a047; /* green */ }
+    #grid { display: grid; grid-template-columns: repeat(11, 40px); grid-template-rows: repeat(11, 40px); gap: 1px; }
+    .cell { width: 40px; height: 40px; background: #fff; border: 1px solid #ff69b4; /* pink border */ box-sizing: border-box; }
+    .turtle { background: #43a047; /* green */ position: relative; }
+    .turtle::after {
+      content: '';
+      display: block;
+      width: 20px;
+      height: 20px;
+      background: #222;
+      border-radius: 50%;
+      position: absolute;
+      top: 10px; left: 10px;
+    }
+    .turtle[data-dir="0"]::before, .turtle[data-dir="1"]::before, .turtle[data-dir="2"]::before, .turtle[data-dir="3"]::before {
+      content: '';
+      position: absolute;
+      width: 10px; height: 10px;
+      background: #ff69b4; /* pink head */
+      border-radius: 50%;
+    }
+    .turtle[data-dir="0"]::before { top: 0; left: 15px; }
+    .turtle[data-dir="1"]::before { top: 15px; right: 0; }
+    .turtle[data-dir="2"]::before { bottom: 0; left: 15px; }
+    .turtle[data-dir="3"]::before { top: 15px; left: 0; }
+    #controls { margin-top: 20px; }
+    #message { margin-top: 10px; min-height: 24px; color: #ff69b4; font-weight: bold; }
+    #instruction-input { width: 300px; border: 1px solid #43a047; border-radius: 4px; padding: 4px; }
+    button {
+      margin-left: 8px;
+      background: #43a047; /* green */
+      color: #fff; /* white text for better contrast */
+      border: none;
+      border-radius: 4px;
+      padding: 6px 14px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #388e3c;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <h1>Turtle Movement Game</h1>
+    <div style="display: flex; flex-direction: row; align-items: flex-start;">
+      <div id="grid"></div>
+      <div style="display: flex; flex-direction: column; margin-left: 24px; gap: 12px;">
+        <div id="instructions" style="background:#fff0fa;border:1px solid #ff69b4;border-radius:8px;padding:14px 18px 10px 18px;max-width:260px;">
+          <strong>Instructions:</strong>
+          <ul style="margin:8px 0 0 18px;padding:0;">
+            <li><code>forward &lt;number&gt;</code> or <code>f &lt;number&gt;</code>: Move forward</li>
+            <li><code>back &lt;number&gt;</code> or <code>b &lt;number&gt;</code>: Move backward</li>
+            <li><code>left &lt;number&gt;</code> or <code>l &lt;number&gt;</code>: Move left</li>
+            <li><code>right &lt;number&gt;</code> or <code>r &lt;number&gt;</code>: Move right</li>
+            <li><code>turn clockwise</code> or <code>c</code>: Turn 90° clockwise</li>
+            <li><code>turn anticlockwise</code> or <code>ac</code>: Turn 90° anti-clockwise</li>
+          </ul>
+          <div style="margin-top:8px;font-size:90%;color:#43a047;">
+            The turtle cannot move out of the grid.
+          </div>
+        </div>
+        <div id="turn-buttons" style="display: flex; flex-direction: column; gap: 12px;">
+          <button id="turn-cw-btn" title="Turn Clockwise">⟳ Turn Clockwise</button>
+          <button id="turn-acw-btn" title="Turn Anti-clockwise">⟲ Turn Anti-clockwise</button>
+        </div>
+        <div id="turn-counts" style="margin-top:18px; color: #43a047; font-weight: bold; text-align: left;">
+          <span id="round-turn-count">0</span> turns played
+        </div>
+      </div>
+    </div>
+    <div id="controls">
+      <input id="instruction-input" type="text" placeholder="e.g. forward 3" autocomplete="off" />
+      <button id="submit-btn">Submit</button>
+      <button id="restart-btn">Restart</button>
+    </div>
+    <div id="message"></div>
+    <!-- Settings moved to bottom -->
+    <div id="settings-panel" style="margin-top: 32px; display: flex; flex-direction: row; gap: 32px; align-items: center;">
+      <div>
+        <label for="bg-color-picker" style="font-weight:bold; color:#43a047;">Background: </label>
+        <input type="color" id="bg-color-picker" value="#ffe4ef" style="width:32px; height:32px; border:none; vertical-align:middle; background:transparent; cursor:pointer;">
+      </div>
+      <div>
+        <label for="grid-size-input" style="font-weight:bold; color:#43a047;">Grid size: </label>
+        <input type="number" id="grid-size-input" min="5" max="25" value="11" style="width:60px; border-radius:4px; border:1px solid #43a047; padding:2px 6px;">
+        <button id="grid-size-apply-btn" style="margin-left:8px;">Apply</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    // --- Game State ---
+    let GRID_SIZE = 11;
+    let CENTER = Math.floor(GRID_SIZE / 2);
+    const DIRECTIONS = ['up', 'right', 'down', 'left']; // 0,1,2,3
+    let turtle = { x: CENTER, y: CENTER, dir: 0 }; // dir: 0=up, 1=right, 2=down, 3=left
+    let playerTurn = true;
+    let awaitingPlayerClick = false;
+    let computerInstruction = null;
+
+    // --- DOM Elements ---
+    const gridEl = document.getElementById('grid');
+    const inputEl = document.getElementById('instruction-input');
+    const submitBtn = document.getElementById('submit-btn');
+    const restartBtn = document.getElementById('restart-btn');
+    const messageEl = document.getElementById('message');
+    const turnCwBtn = document.getElementById('turn-cw-btn');
+    const turnAcwBtn = document.getElementById('turn-acw-btn');
+    const gridSizeInput = document.getElementById('grid-size-input');
+    const gridSizeApplyBtn = document.getElementById('grid-size-apply-btn');
+
+    // --- Grid Rendering ---
+    function renderGrid() {
+      // Update grid CSS for new size
+      gridEl.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 40px)`;
+      gridEl.style.gridTemplateRows = `repeat(${GRID_SIZE}, 40px)`;
+      gridEl.innerHTML = '';
+      for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.x = x;
+          cell.dataset.y = y;
+          if (x === turtle.x && y === turtle.y) {
+            cell.classList.add('turtle');
+            cell.setAttribute('data-dir', turtle.dir);
+          }
+          if (awaitingPlayerClick) {
+            cell.style.cursor = 'pointer';
+            cell.addEventListener('click', () => handlePlayerClick(x, y));
+          }
+          gridEl.appendChild(cell);
+        }
+      }
+    }
+
+    // --- Turtle Movement ---
+    function moveTurtle(instruction) {
+      let { x, y, dir } = turtle;
+      let changed = false;
+      if (instruction.type === 'move') {
+        let dx = 0, dy = 0;
+        let n = instruction.value;
+        switch (instruction.direction) {
+          case 'forward':
+            if (dir === 0) dy = -n;
+            if (dir === 1) dx = n;
+            if (dir === 2) dy = n;
+            if (dir === 3) dx = -n;
+            break;
+          case 'back':
+            if (dir === 0) dy = n;
+            if (dir === 1) dx = -n;
+            if (dir === 2) dy = -n;
+            if (dir === 3) dx = n;
+            break;
+          case 'left':
+            if (dir === 0) dx = -n;
+            if (dir === 1) dy = -n;
+            if (dir === 2) dx = n;
+            if (dir === 3) dy = n;
+            break;
+          case 'right':
+            if (dir === 0) dx = n;
+            if (dir === 1) dy = n;
+            if (dir === 2) dx = -n;
+            if (dir === 3) dy = -n;
+            break;
+        }
+        let nx = x + dx;
+        let ny = y + dy;
+        // Prevent moving out of bounds
+        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) {
+          setMessage('Instruction would move the turtle out of the grid. Try again.');
+          return false;
+        }
+        if (nx !== x || ny !== y) changed = true;
+        turtle.x = nx;
+        turtle.y = ny;
+      } else if (instruction.type === 'turn') {
+        if (instruction.direction === 'clockwise') {
+          turtle.dir = (dir + 1) % 4;
+        } else if (instruction.direction === 'anticlockwise') {
+          turtle.dir = (dir + 3) % 4;
+        }
+        changed = true;
+      }
+      return changed;
+    }
+
+    // --- Instruction Parsing ---
+    function parseInstruction(text) {
+      text = text.trim().toLowerCase();
+      // Short forms mapping
+      const moveShort = { f: 'forward', b: 'back', l: 'left', r: 'right' };
+      const turnShort = { c: 'clockwise', ac: 'anticlockwise' };
+
+      // Try short move: f 3, b 2, etc.
+      let moveShortMatch = text.match(/^(f|b|l|r)\s+(\d+)$/);
+      if (moveShortMatch) {
+        return { type: 'move', direction: moveShort[moveShortMatch[1]], value: parseInt(moveShortMatch[2], 10) };
+      }
+      // Try short turn: c, ac
+      if (text === 'c') {
+        return { type: 'turn', direction: 'clockwise' };
+      }
+      if (text === 'ac') {
+        return { type: 'turn', direction: 'anticlockwise' };
+      }
+      // Full move: forward 3, etc.
+      let moveMatch = text.match(/^(forward|back|left|right)\s+(\d+)$/);
+      if (moveMatch) {
+        return { type: 'move', direction: moveMatch[1], value: parseInt(moveMatch[2], 10) };
+      }
+      // Full turn: turn clockwise, turn anticlockwise
+      let turnMatch = text.match(/^turn\s+(clockwise|anticlockwise)$/);
+      if (turnMatch) {
+        return { type: 'turn', direction: turnMatch[1] };
+      }
+      return null;
+    }
+
+    // --- Computer Instruction Generation ---
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+    function generateComputerInstruction() {
+      // 60% move, 40% turn
+      if (Math.random() < 0.6) {
+        const dirs = ['forward', 'back', 'left', 'right'];
+        const dir = dirs[randomInt(0, 3)];
+        const maxStep = 5;
+        return { type: 'move', direction: dir, value: randomInt(1, maxStep) };
+      } else {
+        const dir = Math.random() < 0.5 ? 'clockwise' : 'anticlockwise';
+        return { type: 'turn', direction: dir };
+      }
+    }
+    function instructionToText(instr) {
+      if (instr.type === 'move') {
+        return `${instr.direction} ${instr.value}`;
+      } else {
+        return `turn ${instr.direction}`;
+      }
+    }
+
+    // --- Turn Button Handlers ---
+    function handleTurnButton(direction) {
+      if (playerTurn && !awaitingPlayerClick) {
+        const instr = { type: 'turn', direction };
+        moveTurtle(instr);
+        renderGrid();
+        roundTurnCount++; // Increment turns played after player moves
+        updateTurnCounts();
+        turnCwBtn.disabled = true;
+        turnAcwBtn.disabled = true;
+        setTimeout(nextTurn, 700);
+      } else if (!playerTurn && awaitingPlayerClick && computerInstruction && computerInstruction.type === 'turn' && computerInstruction.direction === direction) {
+        // Computer's turn and expecting a turn button press
+        let expectedDir = turtle.dir;
+        if (direction === 'clockwise') {
+          expectedDir = (expectedDir + 1) % 4;
+        } else if (direction === 'anticlockwise') {
+          expectedDir = (expectedDir + 3) % 4;
+        }
+        turtle.dir = expectedDir;
+        setMessage('Correct! Turtle turned.');
+        awaitingPlayerClick = false;
+        turnCwBtn.disabled = true;
+        turnAcwBtn.disabled = true;
+        renderGrid();
+        setTimeout(nextTurn, 700);
+      } else if (!playerTurn && awaitingPlayerClick && computerInstruction && computerInstruction.type === 'turn') {
+        setMessage('Please press the correct turn button as instructed.');
+      }
+    }
+
+    turnCwBtn.addEventListener('click', function() { handleTurnButton('clockwise'); });
+    turnAcwBtn.addEventListener('click', function() { handleTurnButton('anticlockwise'); });
+
+    // --- Turn Management ---
+    function setMessage(msg) {
+      messageEl.textContent = msg;
+    }
+    // Remove playerTurnCount and computerTurnCount, use roundTurnCount
+    let roundTurnCount = 0;
+    const roundTurnCountEl = document.getElementById('round-turn-count');
+    function updateTurnCounts() {
+      roundTurnCountEl.textContent = roundTurnCount;
+    }
+    function nextTurn() {
+      playerTurn = !playerTurn;
+      if (playerTurn) {
+        // Player's turn, do not increment round count yet
+        setMessage("Your turn: Type an instruction and press Submit.");
+        inputEl.disabled = false;
+        submitBtn.disabled = false;
+        // Only enable turn buttons if not awaiting a computer turn instruction
+        if (!awaitingPlayerClick) {
+          turnCwBtn.disabled = false;
+          turnAcwBtn.disabled = false;
+        } else {
+          turnCwBtn.disabled = true;
+          turnAcwBtn.disabled = true;
+        }
+        awaitingPlayerClick = false;
+        renderGrid();
+      } else {
+        // Computer's turn
+        inputEl.disabled = true;
+        submitBtn.disabled = true;
+        turnCwBtn.disabled = true;
+        turnAcwBtn.disabled = true;
+        // Computer gives instruction
+        computerInstruction = generateComputerInstruction();
+        if (computerInstruction.type === 'move') {
+          setMessage(`Computer says: "${instructionToText(computerInstruction)}". Click the destination square.`);
+          awaitingPlayerClick = true;
+          // Turn buttons should remain disabled
+          turnCwBtn.disabled = true;
+          turnAcwBtn.disabled = true;
+          renderGrid();
+        } else if (computerInstruction.type === 'turn') {
+          setMessage(`Computer says: "${instructionToText(computerInstruction)}". Press the correct turn button.`);
+          awaitingPlayerClick = true;
+          // Enable only the correct turn button
+          turnCwBtn.disabled = computerInstruction.direction !== 'clockwise';
+          turnAcwBtn.disabled = computerInstruction.direction !== 'anticlockwise';
+          renderGrid();
+        }
+      }
+    }
+
+    // --- Player Input Handling ---
+    submitBtn.addEventListener('click', () => {
+      if (!playerTurn) return;
+      const text = inputEl.value;
+      const instr = parseInstruction(text);
+      if (!instr) {
+        setMessage('Invalid instruction. Try again.');
+        return;
+      }
+      const moved = moveTurtle(instr);
+      renderGrid();
+      if (!moved) return;
+      inputEl.value = '';
+      roundTurnCount++; // Increment turns played after player moves
+      updateTurnCounts();
+      turnCwBtn.disabled = true;
+      turnAcwBtn.disabled = true;
+      setTimeout(nextTurn, 700);
+    });
+    inputEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') submitBtn.click();
+    });
+
+    // --- Player Click Handling for Computer's Turn ---
+    function handlePlayerClick(x, y) {
+      if (!awaitingPlayerClick) return;
+      // Only allow clicking for move instructions
+      if (computerInstruction.type !== 'move') return;
+      // Simulate the computer's instruction to get the expected destination
+      let simTurtle = { ...turtle };
+      let instr = computerInstruction;
+      let dx = 0, dy = 0;
+      let n = instr.value;
+      switch (instr.direction) {
+        case 'forward':
+          if (simTurtle.dir === 0) dy = -n;
+          if (simTurtle.dir === 1) dx = n;
+          if (simTurtle.dir === 2) dy = n;
+          if (simTurtle.dir === 3) dx = -n;
+          break;
+        case 'back':
+          if (simTurtle.dir === 0) dy = n;
+          if (simTurtle.dir === 1) dx = -n;
+          if (simTurtle.dir === 2) dy = -n;
+          if (simTurtle.dir === 3) dx = n;
+          break;
+        case 'left':
+          if (simTurtle.dir === 0) dx = -n;
+          if (simTurtle.dir === 1) dy = -n;
+          if (simTurtle.dir === 2) dx = n;
+          if (simTurtle.dir === 3) dy = n;
+          break;
+        case 'right':
+          if (simTurtle.dir === 0) dx = n;
+          if (simTurtle.dir === 1) dy = n;
+          if (simTurtle.dir === 2) dx = -n;
+          if (simTurtle.dir === 3) dy = -n;
+          break;
+      }
+      let nx = simTurtle.x + dx;
+      let ny = simTurtle.y + dy;
+      // Prevent moving out of bounds
+      if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) {
+        setMessage('Computer instruction would move the turtle out of the grid. Skipping turn.');
+        awaitingPlayerClick = false;
+        setTimeout(nextTurn, 1200);
+        return;
+      }
+      if (x === nx && y === ny) {
+        // Correct!
+        turtle.x = nx;
+        turtle.y = ny;
+        setMessage('Correct! Turtle moved.');
+        awaitingPlayerClick = false;
+        renderGrid();
+        setTimeout(nextTurn, 700);
+      } else {
+        setMessage('Incorrect square. Try again.');
+        return;
+      }
+    }
+
+    // --- Restart ---
+    restartBtn.addEventListener('click', () => {
+      turtle = { x: CENTER, y: CENTER, dir: 0 };
+      playerTurn = true;
+      awaitingPlayerClick = false;
+      inputEl.value = '';
+      roundTurnCount = 0;
+      updateTurnCounts();
+      setMessage('Game restarted. Your turn!');
+      turnCwBtn.disabled = false;
+      turnAcwBtn.disabled = false;
+      renderGrid();
+    });
+
+    // --- Background Color Picker ---
+    const bgColorPicker = document.getElementById('bg-color-picker');
+    bgColorPicker.addEventListener('input', function() {
+      document.body.style.background = bgColorPicker.value;
+    });
+    // Set initial background color
+    document.body.style.background = bgColorPicker.value;
+
+    // --- Initial Render ---
+    setMessage('Your turn: Type an instruction and press Submit.');
+    turnCwBtn.disabled = false;
+    turnAcwBtn.disabled = false;
+    updateTurnCounts();
+    renderGrid();
+
+    // --- Grid Size Change Handler ---
+    gridSizeApplyBtn.addEventListener('click', () => {
+      let newSize = parseInt(gridSizeInput.value, 10);
+      if (isNaN(newSize) || newSize < 5 || newSize > 25) {
+        setMessage('Grid size must be between 5 and 25.');
+        return;
+      }
+      GRID_SIZE = newSize;
+      CENTER = Math.floor(GRID_SIZE / 2);
+      turtle = { x: CENTER, y: CENTER, dir: 0 };
+      playerTurn = true;
+      awaitingPlayerClick = false;
+      inputEl.value = '';
+      roundTurnCount = 0;
+      updateTurnCounts();
+      setMessage('Grid size changed. Game restarted. Your turn!');
+      turnCwBtn.disabled = false;
+      turnAcwBtn.disabled = false;
+      // Update the grid size input value to reflect the new grid size
+      gridSizeInput.value = GRID_SIZE;
+      renderGrid();
+    });
+
+    // Ensure the initial grid size is set from the input value
+    GRID_SIZE = parseInt(gridSizeInput.value, 10);
+    CENTER = Math.floor(GRID_SIZE / 2);
+    turtle = { x: CENTER, y: CENTER, dir: 0 };
+    playerTurn = true;
+    awaitingPlayerClick = false;
+    inputEl.value = '';
+    roundTurnCount = 0;
+    updateTurnCounts();
+    setMessage('Your turn: Type an instruction and press Submit.');
+    turnCwBtn.disabled = false;
+    turnAcwBtn.disabled = false;
+    renderGrid();
+  </script>
+</body>
+</html>
