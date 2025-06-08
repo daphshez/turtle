@@ -70,9 +70,9 @@
             The turtle cannot move out of the grid.
           </div>
         </div>
-        <div id="turn-buttons" style="display: flex; flex-direction: column; gap: 12px;">
-          <button id="turn-cw-btn" title="Turn Clockwise">⟳ Turn Clockwise</button>
-          <button id="turn-acw-btn" title="Turn Anti-clockwise">⟲ Turn Anti-clockwise</button>
+        <div id="turn-buttons" style="display: none; flex-direction: row; gap: 8px; margin-top: 0.5em;">
+          <button id="turn-cw-btn" title="Turn Clockwise" style="font-size: 1.15em; height: 28px; padding: 2px 10px; margin-left: 0;">Turn ⟳</button>
+          <button id="turn-acw-btn" title="Turn Anti-clockwise" style="font-size: 1.15em; height: 28px; padding: 2px 10px; margin-left: 0;">Turn ⟲</button>
         </div>
         <div id="turn-counts" style="margin-top:18px; color: #43a047; font-weight: bold; text-align: left;">
           <span id="round-turn-count">0</span> turns played
@@ -118,6 +118,7 @@
     const turnAcwBtn = document.getElementById('turn-acw-btn');
     const gridSizeInput = document.getElementById('grid-size-input');
     const gridSizeApplyBtn = document.getElementById('grid-size-apply-btn');
+    const turnButtonsDiv = document.getElementById('turn-buttons');
 
     // --- Grid Rendering ---
     function renderGrid() {
@@ -257,14 +258,8 @@
     // --- Turn Button Handlers ---
     function handleTurnButton(direction) {
       if (playerTurn && !awaitingPlayerClick) {
-        const instr = { type: 'turn', direction };
-        moveTurtle(instr);
-        renderGrid();
-        roundTurnCount++; // Increment turns played after player moves
-        updateTurnCounts();
-        turnCwBtn.disabled = true;
-        turnAcwBtn.disabled = true;
-        setTimeout(nextTurn, 700);
+        // Should not be possible, but keep for safety
+        return;
       } else if (!playerTurn && awaitingPlayerClick && computerInstruction && computerInstruction.type === 'turn' && computerInstruction.direction === direction) {
         // Computer's turn and expecting a turn button press
         let expectedDir = turtle.dir;
@@ -278,7 +273,11 @@
         awaitingPlayerClick = false;
         turnCwBtn.disabled = true;
         turnAcwBtn.disabled = true;
+        turnButtonsDiv.style.display = "none";
         renderGrid();
+        // INCREMENT TURN COUNT HERE
+        roundTurnCount++;
+        updateTurnCounts();
         setTimeout(nextTurn, 700);
       } else if (!playerTurn && awaitingPlayerClick && computerInstruction && computerInstruction.type === 'turn') {
         setMessage('Please press the correct turn button as instructed.');
@@ -305,14 +304,10 @@
         setMessage("Your turn: Type an instruction and press Submit.");
         inputEl.disabled = false;
         submitBtn.disabled = false;
-        // Only enable turn buttons if not awaiting a computer turn instruction
-        if (!awaitingPlayerClick) {
-          turnCwBtn.disabled = false;
-          turnAcwBtn.disabled = false;
-        } else {
-          turnCwBtn.disabled = true;
-          turnAcwBtn.disabled = true;
-        }
+        // Always hide turn buttons on player's instruction turn
+        turnCwBtn.disabled = true;
+        turnAcwBtn.disabled = true;
+        turnButtonsDiv.style.display = "none";
         awaitingPlayerClick = false;
         renderGrid();
       } else {
@@ -321,19 +316,19 @@
         submitBtn.disabled = true;
         turnCwBtn.disabled = true;
         turnAcwBtn.disabled = true;
+        turnButtonsDiv.style.display = "none";
         // Computer gives instruction
         computerInstruction = generateComputerInstruction();
         if (computerInstruction.type === 'move') {
           setMessage(`Computer says: "${instructionToText(computerInstruction)}". Click the destination square.`);
           awaitingPlayerClick = true;
-          // Turn buttons should remain disabled
-          turnCwBtn.disabled = true;
-          turnAcwBtn.disabled = true;
+          // Turn buttons should remain hidden
           renderGrid();
         } else if (computerInstruction.type === 'turn') {
           setMessage(`Computer says: "${instructionToText(computerInstruction)}". Press the correct turn button.`);
           awaitingPlayerClick = true;
-          // Enable only the correct turn button
+          // Show only the correct turn button when user must act on computer's turn instruction
+          turnButtonsDiv.style.display = "flex";
           turnCwBtn.disabled = computerInstruction.direction !== 'clockwise';
           turnAcwBtn.disabled = computerInstruction.direction !== 'anticlockwise';
           renderGrid();
@@ -354,10 +349,11 @@
       renderGrid();
       if (!moved) return;
       inputEl.value = '';
-      roundTurnCount++; // Increment turns played after player moves
-      updateTurnCounts();
+      // roundTurnCount++; // REMOVE: Increment turns played after player moves
+      // updateTurnCounts();
       turnCwBtn.disabled = true;
       turnAcwBtn.disabled = true;
+      turnButtonsDiv.style.display = "none";
       setTimeout(nextTurn, 700);
     });
     inputEl.addEventListener('keydown', e => {
@@ -416,6 +412,9 @@
         setMessage('Correct! Turtle moved.');
         awaitingPlayerClick = false;
         renderGrid();
+        // INCREMENT TURN COUNT HERE
+        roundTurnCount++;
+        updateTurnCounts();
         setTimeout(nextTurn, 700);
       } else {
         setMessage('Incorrect square. Try again.');
@@ -432,8 +431,9 @@
       roundTurnCount = 0;
       updateTurnCounts();
       setMessage('Game restarted. Your turn!');
-      turnCwBtn.disabled = false;
-      turnAcwBtn.disabled = false;
+      turnCwBtn.disabled = true;
+      turnAcwBtn.disabled = true;
+      turnButtonsDiv.style.display = "none";
       renderGrid();
     });
 
@@ -447,8 +447,9 @@
 
     // --- Initial Render ---
     setMessage('Your turn: Type an instruction and press Submit.');
-    turnCwBtn.disabled = false;
-    turnAcwBtn.disabled = false;
+    turnCwBtn.disabled = true;
+    turnAcwBtn.disabled = true;
+    turnButtonsDiv.style.display = "none";
     updateTurnCounts();
     renderGrid();
 
@@ -468,8 +469,8 @@
       roundTurnCount = 0;
       updateTurnCounts();
       setMessage('Grid size changed. Game restarted. Your turn!');
-      turnCwBtn.disabled = false;
-      turnAcwBtn.disabled = false;
+      turnCwBtn.disabled = true;
+      turnAcwBtn.disabled = true;
       // Update the grid size input value to reflect the new grid size
       gridSizeInput.value = GRID_SIZE;
       renderGrid();
@@ -485,8 +486,8 @@
     roundTurnCount = 0;
     updateTurnCounts();
     setMessage('Your turn: Type an instruction and press Submit.');
-    turnCwBtn.disabled = false;
-    turnAcwBtn.disabled = false;
+    turnCwBtn.disabled = true;
+    turnAcwBtn.disabled = true;
     renderGrid();
   </script>
 </body>

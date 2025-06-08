@@ -1,9 +1,9 @@
 # Turtle Movement Game
 
-This is a JavaScript game designed to teach children how to use correct terminology to describe movements and turns. The game features a 25x25 grid and a turtle character that both the player and computer can move by giving instructions.
+This is a JavaScript game designed to teach children how to use correct terminology to describe movements and turns. The game features a 11x11 grid and a turtle character that both the player and computer can move by giving instructions.
 
 ## Features
-- 25x25 grid with a turtle starting at the center
+- 11x11 grid with a turtle starting at the center
 - Player and computer take turns giving movement instructions
 - Player types instructions; computer moves the turtle
 - Computer gives instructions; player clicks the destination square
